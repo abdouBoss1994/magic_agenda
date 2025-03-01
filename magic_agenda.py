@@ -1,5 +1,7 @@
 import streamlit as st
 import pandas as pd
+import csv
+import io
 
 # -- Configuration de la page --
 st.set_page_config(page_title="Consultation du Plan d'Action", layout="wide")
@@ -50,8 +52,12 @@ def main():
         # Lecture du fichier
         df = load_data(uploaded_file, file_type)
         
-        st.subheader("Aperçu des données brutes")
-        st.dataframe(df.head(10))  # Affiche les 10 premières lignes
+        # Inverser l'ordre des colonnes
+        df = df[df.columns[::-1]]
+        
+        st.subheader("Aperçu des données brutes (sans index)")
+        # Pour éviter d’afficher la colonne d’index dans le tableau Streamlit :
+        st.dataframe(df.reset_index(drop=True).head(20))
         
         # -- Filtres sur Domaines de dépense --
         if "Domaines de dépense" in df.columns:
@@ -110,7 +116,7 @@ def main():
                 (df_filtered["Date de début"] <= pd.to_datetime(end_date))
             ]
         
-        st.subheader("Données filtrées")
+        st.subheader("Données filtrées (sans index)")
         
         # -- Choix de la colonne de tri --
         sort_col = st.selectbox(
@@ -120,12 +126,32 @@ def main():
         
         # -- Ordre de tri (ascendant ou descendant) --
         sort_ascending = st.radio("Ordre de tri", ("Croissant", "Décroissant"))
-        ascending = True if sort_ascending == "Croissant" else False
+        ascending = (sort_ascending == "Croissant")
         
         # -- Application du tri --
         df_filtered = df_filtered.sort_values(by=sort_col, ascending=ascending)
         
-        st.dataframe(df_filtered)
+        # On supprime l'index avant affichage
+        st.dataframe(df_filtered.reset_index(drop=True))
+        
+        st.write("---")
+        st.subheader("Exportation des données filtrées")
+        
+        # -------------------------------
+        # Export Excel
+        # -------------------------------
+        excel_buffer = io.BytesIO()
+        # Pour exporter en Excel, on n’inclut pas l’index non plus :
+        df_filtered.to_excel(excel_buffer, index=False, engine='openpyxl')
+        excel_buffer.seek(0)
+        
+        st.download_button(
+            label="Télécharger en Excel (XLSX)",
+            data=excel_buffer,
+            file_name="filtered_data.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
     else:
         st.info("Veuillez charger un fichier pour commencer.")
 
